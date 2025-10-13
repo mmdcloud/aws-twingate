@@ -9,7 +9,8 @@ terraform {
       version = "~> 3.0"
     }
     twingate = {
-      source = "twingate/twingate"
+      source  = "twingate/twingate"
+      version = "~> 3.0"
     }
   }
 }
@@ -19,3 +20,8 @@ provider "aws" {
 }
 
 provider "random" {}
+
+provider "twingate" {
+  api_token = ""
+  network = var.tg_network
+}
