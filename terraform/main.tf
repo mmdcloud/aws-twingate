@@ -9,116 +9,54 @@ resource "random_id" "id" {
 # VPC Configuration
 # -----------------------------------------------------------------------------------------
 module "twingate_vpc" {
-  source                = "./modules/vpc/vpc"
-  vpc_name              = "twingate-vpc"
-  vpc_cidr_block        = "10.0.0.0/16"
-  enable_dns_hostnames  = true
-  enable_dns_support    = true
-  internet_gateway_name = "vpc_igw"
+  source = "./modules/vpc"
+  vpc_name = "twingate-vpc"
+  vpc_cidr = "10.0.0.0/16"
+  azs             = var.azs
+  public_subnets  = var.public_subnets
+  private_subnets = var.private_subnets
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  create_igw = true
+  map_public_ip_on_launch = true
+  enable_nat_gateway     = false
+  single_nat_gateway     = false
+  one_nat_gateway_per_az = false
+  tags = {
+    Project     = "twingate"
+  }
 }
 
 # Security Group
-module "twingate_security_group" {
-  source = "./modules/vpc/security_groups"
-  vpc_id = module.twingate_vpc.vpc_id
-  name   = "twingate-sg"
-  ingress = [
-    {
-      from_port       = 80
-      to_port         = 80
-      protocol        = "tcp"
-      self            = "false"
-      cidr_blocks     = ["0.0.0.0/0"]
-      security_groups = []
-      description     = "any"
-    },
-    {
-      from_port       = 0
-      to_port         = 0
-      protocol        = "tcp"
-      self            = "true"
-      cidr_blocks     = ["0.0.0.0/0"]
-      security_groups = []
-      description     = "any"
-    }
-  ]
-  egress = [
-    {
-      from_port   = 0
-      to_port     = 0
-      protocol    = "-1"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
-  ]
-}
+resource "aws_security_group" "twingate_security_group" {
+  name        = "twingate-sg"
+  vpc_id      = module.twingate_vpc.vpc_id
 
-# Public Subnets
-module "twingate_public_subnets" {
-  source = "./modules/vpc/subnets"
-  name   = "twingate-public-subnet"
-  subnets = [
-    {
-      subnet = "10.0.1.0/24"
-      az     = "${var.region}a"
-    },
-    {
-      subnet = "10.0.2.0/24"
-      az     = "${var.region}b"
-    },
-    {
-      subnet = "10.0.3.0/24"
-      az     = "${var.region}c"
-    }
-  ]
-  vpc_id                  = module.twingate_vpc.vpc_id
-  map_public_ip_on_launch = true
-}
+  ingress {
+    description = "HTTP traffic"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-# Private Subnets
-module "twingate_private_subnets" {
-  source = "./modules/vpc/subnets"
-  name   = "twingate-private-subnet"
-  subnets = [
-    {
-      subnet = "10.0.4.0/24"
-      az     = "${var.region}a"
-    },
-    {
-      subnet = "10.0.5.0/24"
-      az     = "${var.region}b"
-    },
-    {
-      subnet = "10.0.6.0/24"
-      az     = "${var.region}c"
-    }
-  ]
-  vpc_id                  = module.twingate_vpc.vpc_id
-  map_public_ip_on_launch = false
-}
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-# Public Route Table
-module "twingate_public_rt" {
-  source  = "./modules/vpc/route_tables"
-  name    = "twingate-public-route-table"
-  subnets = module.twingate_public_subnets.subnets[*]
-  routes = [
-    {
-      cidr_block         = "0.0.0.0/0"
-      gateway_id         = module.twingate_vpc.igw_id
-      nat_gateway_id     = ""
-      transit_gateway_id = ""
-    }
-  ]
-  vpc_id = module.twingate_vpc.vpc_id
-}
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-# Private Route Table
-module "twingate_private_rt" {
-  source  = "./modules/vpc/route_tables"
-  name    = "twingate-private-route-table"
-  subnets = module.twingate_private_subnets.subnets[*]
-  routes  = []
-  vpc_id  = module.twingate_vpc.vpc_id
+  tags = {
+    Name = "twingate-sg"
+  }
 }
 
 # -----------------------------------------------------------------------------------------
@@ -158,7 +96,7 @@ resource "aws_instance" "instance" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t3.micro"
   key_name      = data.aws_key_pair.key_pair.key_name
-  subnet_id     = module.twingate_private_subnets.subnets[0].id
+  subnet_id     = module.twingate_vpc.private_subnets[0]
   tags = {
     "Name" = "Demo VM"
   }
@@ -180,7 +118,7 @@ resource "aws_instance" "twingate_connector" {
     } > /etc/twingate/connector.conf
     sudo systemctl enable --now twingate-connector
   EOT
-  subnet_id                   = module.twingate_public_subnets.subnets[0].id
+  subnet_id                   = module.twingate_vpc.public_subnets[0]
   tags = {
     "Name" = "Twingate Connector"
   }
