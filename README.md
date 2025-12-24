@@ -1,4 +1,4 @@
-# Twingate Zero Trust Network Access on AWS
+# 🚀 Twingate Zero Trust Network Access on AWS
 
 Production-grade Terraform infrastructure for deploying Twingate Zero Trust Network Access (ZTNA) solution on AWS, enabling secure remote access to private resources without traditional VPNs.
 
