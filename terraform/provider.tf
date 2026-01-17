@@ -9,8 +9,7 @@ terraform {
       version = "~> 3.0"
     }
     twingate = {
-      source  = "twingate/twingate"
-      version = "~> 3.0"
+      source = "twingate/twingate"
     }
   }
 }
@@ -23,5 +22,5 @@ provider "random" {}
 
 provider "twingate" {
   api_token = ""
-  network = var.tg_network
+  network   = var.tg_network
 }
