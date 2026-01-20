@@ -113,7 +113,6 @@ module "vm_sg" {
 # -----------------------------------------------------------------------------------------
 # Twingate Configuration
 # -----------------------------------------------------------------------------------------
-# Data Block top get latest ami
 data "aws_ami" "ubuntu" {
   most_recent = true
   filter {
@@ -124,7 +123,7 @@ data "aws_ami" "ubuntu" {
     name   = "virtualization-type"
     values = ["hvm"]
   }
-  owners = ["099720109477"] # Canonical
+  owners = ["099720109477"]
 }
 
 # Twingate AMI

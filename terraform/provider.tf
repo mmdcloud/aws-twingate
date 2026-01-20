@@ -21,6 +21,6 @@ provider "aws" {
 provider "random" {}
 
 provider "twingate" {
-  api_token = ""
+  api_token = "" # Add your Twingate API token here
   network   = var.tg_network
 }
