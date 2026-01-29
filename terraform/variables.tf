@@ -4,7 +4,7 @@ variable "region" {
 }
 
 variable "tg_network" {
-  type    = string
+  type = string
 }
 
 variable "public_subnets" {

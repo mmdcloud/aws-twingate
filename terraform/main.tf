@@ -35,6 +35,14 @@ module "twingate_connector_sg" {
   ingress_rules = [
     {
       description     = "Twingate Control Plane"
+      from_port       = 22
+      to_port         = 22
+      protocol        = "tcp"
+      security_groups = []
+      cidr_blocks     = ["0.0.0.0/0"]
+    },
+    {
+      description     = "Twingate Control Plane"
       from_port       = 443
       to_port         = 443
       protocol        = "tcp"
@@ -211,9 +219,18 @@ resource "twingate_user" "user" {
   email      = "madmaxcloudonline@gmail.com"
 }
 
+data "twingate_users" "lookup" {
+    email = "mohitfury1997@gmail.com"  
+}
+
+# Access the first (and should be only) matching user
+locals {
+  mohit_user_id = data.twingate_users.lookup.users[0].id
+}
+
 resource "twingate_group" "aws_group" {
   name     = "aws group"
-  user_ids = [twingate_user.user.id]
+  user_ids = [twingate_user.user.id, local.mohit_user_id]
 }
 
 resource "twingate_resource" "aws_resource" {
@@ -224,7 +241,7 @@ resource "twingate_resource" "aws_resource" {
     allow_icmp = true
     tcp = {
       policy = "RESTRICTED"
-      ports  = ["22"]
+      ports  = ["80"]
     }
     udp = {
       policy = "ALLOW_ALL"
