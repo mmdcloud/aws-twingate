@@ -1,3 +1,5 @@
+data "aws_elb_service_account" "elb_service_account" {}
+
 # -----------------------------------------------------------------------------------------
 # Creating random id configuration
 # -----------------------------------------------------------------------------------------
@@ -73,13 +75,13 @@ module "twingate_connector_sg" {
   }
 }
 
-module "vm_sg" {
+module "lb_sg" {
   source = "./modules/security-groups"
-  name   = "vm-sg"
+  name   = "lb-sg"
   vpc_id = module.twingate_vpc.vpc_id
   ingress_rules = [
     {
-      description     = "HTTP from Twingate Connector"
+      description     = "HTTP Traffic"
       from_port       = 80
       to_port         = 80
       protocol        = "tcp"
@@ -87,34 +89,261 @@ module "vm_sg" {
       cidr_blocks     = []
     },
     {
-      description     = "SSH from Twingate Connector"
-      from_port       = 22
-      to_port         = 22
+      description     = "HTTPS Traffic"
+      from_port       = 443
+      to_port         = 443
       protocol        = "tcp"
-      security_groups = [module.twingate_connector_sg.id]
-      cidr_blocks     = []
-    },
-    {
-      description     = "ICMP from Twingate Connector"
-      from_port       = -1
-      to_port         = -1
-      protocol        = "icmp"
       security_groups = [module.twingate_connector_sg.id]
       cidr_blocks     = []
     }
   ]
   egress_rules = [
     {
-      description     = "Allow all outbound"
-      from_port       = 0
-      to_port         = 0
-      protocol        = "-1"
-      cidr_blocks     = ["0.0.0.0/0"]
-      security_groups = []
+      description = "Allow all outbound traffic"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
     }
   ]
   tags = {
-    Name = "demo-vm-sg"
+    Name = "lb-sg"
+  }
+}
+
+module "asg_sg" {
+  source = "./modules/security-groups"
+  name   = "asg-sg"
+  vpc_id = module.twingate_vpc.vpc_id
+  ingress_rules = [
+    {
+      description     = "HTTP Traffic"
+      from_port       = 80
+      to_port         = 80
+      protocol        = "tcp"
+      security_groups = [module.lb_sg.id]
+      cidr_blocks     = []
+    }
+  ]
+  egress_rules = [
+    {
+      description = "Allow all outbound traffic"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
+  tags = {
+    Name = "asg-sg"
+  }
+}
+
+# module "vm_sg" {
+#   source = "./modules/security-groups"
+#   name   = "vm-sg"
+#   vpc_id = module.twingate_vpc.vpc_id
+#   ingress_rules = [
+#     {
+#       description     = "HTTP from Twingate Connector"
+#       from_port       = 80
+#       to_port         = 80
+#       protocol        = "tcp"
+#       security_groups = [module.twingate_connector_sg.id]
+#       cidr_blocks     = []
+#     },
+#     {
+#       description     = "SSH from Twingate Connector"
+#       from_port       = 22
+#       to_port         = 22
+#       protocol        = "tcp"
+#       security_groups = [module.twingate_connector_sg.id]
+#       cidr_blocks     = []
+#     },
+#     {
+#       description     = "ICMP from Twingate Connector"
+#       from_port       = -1
+#       to_port         = -1
+#       protocol        = "icmp"
+#       security_groups = [module.twingate_connector_sg.id]
+#       cidr_blocks     = []
+#     }
+#   ]
+#   egress_rules = [
+#     {
+#       description     = "Allow all outbound"
+#       from_port       = 0
+#       to_port         = 0
+#       protocol        = "-1"
+#       cidr_blocks     = ["0.0.0.0/0"]
+#       security_groups = []
+#     }
+#   ]
+#   tags = {
+#     Name = "demo-vm-sg"
+#   }
+# }
+
+# -------------------------------------------------------------------------------
+# Auto Scaling Group
+# -------------------------------------------------------------------------------
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "iam_instance_profile" {
+  name = "ec2-instance-profile"
+  role = aws_iam_role.ec2_role.name
+}
+
+# Instance template
+module "launch_template" {
+  source                               = "./modules/launch_template"
+  name                                 = "launch_template"
+  description                          = "launch_template"
+  ebs_optimized                        = false
+  image_id                             = "ami-005fc0f236362e99f"
+  instance_type                        = "t2.micro"
+  instance_initiated_shutdown_behavior = "stop"
+  instance_profile_name                = aws_iam_instance_profile.iam_instance_profile.name
+  key_name                             = "madmaxkeypair"
+  network_interfaces = [
+    {
+      associate_public_ip_address = false
+      security_groups             = [module.asg_sg.id]
+    }
+  ]
+  user_data = base64encode(templatefile("${path.module}/scripts/user_data.sh", {}))
+}
+
+# Auto Scaling Group for launch template
+module "asg" {
+  source                    = "./modules/auto_scaling_group"
+  name                      = "asg"
+  min_size                  = 3
+  max_size                  = 50
+  desired_capacity          = 3
+  health_check_grace_period = 300
+  health_check_type         = "ELB"
+  force_delete              = true
+  target_group_arns         = [module.lb.target_groups.lb_target_group.arn]
+  vpc_zone_identifier       = module.twingate_vpc.private_subnets
+  launch_template_id        = module.launch_template.id
+  launch_template_version   = "$Latest"
+}
+
+# -------------------------------------------------------------------------------
+# Load Balancer
+# -------------------------------------------------------------------------------
+module "lb_logs" {
+  source      = "./modules/s3"
+  bucket_name = "lb-logs-${random_id.id.hex}"
+  region      = var.region
+  objects     = []
+  bucket_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AWSLogDeliveryWrite"
+        Effect = "Allow"
+        Principal = {
+          Service = "logging.s3.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
+      },
+      {
+        Sid    = "AWSLogDeliveryAclCheck"
+        Effect = "Allow"
+        Principal = {
+          Service = "logging.s3.amazonaws.com"
+        }
+        Action   = "s3:GetBucketAcl"
+        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}"
+      },
+      {
+        Sid    = "AWSELBAccountWrite"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_elb_service_account.elb_service_account.id}:root"
+        }
+        Action   = "s3:PutObject"
+        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
+      }
+    ]
+  })
+  cors = [
+    {
+      allowed_headers = ["*"]
+      allowed_methods = ["GET"]
+      allowed_origins = ["*"]
+      max_age_seconds = 3000
+    },
+    {
+      allowed_headers = ["*"]
+      allowed_methods = ["PUT"]
+      allowed_origins = ["*"]
+      max_age_seconds = 3000
+    }
+  ]
+  versioning_enabled = "Enabled"
+  force_destroy      = true
+}
+
+module "lb" {
+  source                     = "terraform-aws-modules/alb/aws"
+  name                       = "lb"
+  load_balancer_type         = "application"
+  vpc_id                     = module.twingate_vpc.vpc_id
+  subnets                    = module.twingate_vpc.private_subnets
+  enable_deletion_protection = false
+  drop_invalid_header_fields = true
+  ip_address_type            = "ipv4"
+  internal                   = true
+  security_groups = [
+    module.lb_sg.id
+  ]
+  access_logs = {
+    bucket = "${module.lb_logs.bucket}"
+  }
+  listeners = {
+    lb_http_listener = {
+      port     = 80
+      protocol = "HTTP"
+      forward = {
+        target_group_key = "lb_target_group"
+      }
+    }
+  }
+  target_groups = {
+    lb_target_group = {
+      backend_protocol = "HTTP"
+      backend_port     = 80
+      target_type      = "instance"
+      health_check = {
+        enabled             = true
+        healthy_threshold   = 3
+        interval            = 30
+        path                = "/"
+        port                = 80
+        protocol            = "HTTP"
+        unhealthy_threshold = 3
+      }
+      create_attachment = false
+    }
+  }
+  tags = {
+    Project = "verified-access"
   }
 }
 
@@ -149,24 +378,24 @@ data "aws_key_pair" "key_pair" {
   key_name = "madmaxkeypair"
 }
 
-resource "aws_instance" "instance" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t3.micro"
-  key_name               = data.aws_key_pair.key_pair.key_name
-  subnet_id              = module.twingate_vpc.private_subnets[0]
-  vpc_security_group_ids = [module.vm_sg.id]
-  user_data              = <<-EOT
-    #!/bin/bash
-    apt-get update
-    apt-get install -y nginx
-    echo "<h1>Hello from Twingate Demo VM</h1>" > /var/www/html/index.html
-    systemctl enable nginx
-    systemctl start nginx
-  EOT
-  tags = {
-    "Name" = "Demo VM"
-  }
-}
+# resource "aws_instance" "instance" {
+#   ami                    = data.aws_ami.ubuntu.id
+#   instance_type          = "t3.micro"
+#   key_name               = data.aws_key_pair.key_pair.key_name
+#   subnet_id              = module.twingate_vpc.private_subnets[0]
+#   vpc_security_group_ids = [module.vm_sg.id]
+#   user_data              = <<-EOT
+#     #!/bin/bash
+#     apt-get update
+#     apt-get install -y nginx
+#     echo "<h1>Hello from Twingate Demo VM</h1>" > /var/www/html/index.html
+#     systemctl enable nginx
+#     systemctl start nginx
+#   EOT
+#   tags = {
+#     "Name" = "Demo VM"
+#   }
+# }
 
 resource "aws_instance" "twingate_connector" {
   ami                         = data.aws_ami.twingate.id
@@ -220,7 +449,7 @@ resource "twingate_user" "user" {
 }
 
 data "twingate_users" "lookup" {
-    email = "mohitfury1997@gmail.com"  
+  email = "mohitfury1997@gmail.com"
 }
 
 # Access the first (and should be only) matching user
@@ -235,7 +464,7 @@ resource "twingate_group" "aws_group" {
 
 resource "twingate_resource" "aws_resource" {
   name              = "aws web sever"
-  address           = aws_instance.instance.private_ip
+  address           = module.lb.dns_name
   remote_network_id = twingate_remote_network.aws_network.id
   protocols = {
     allow_icmp = true
