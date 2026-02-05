@@ -9,3 +9,7 @@ output "public_subnets" {
 output "private_subnets" {
   value = module.vpc.private_subnets
 }
+
+output "vpc_cidr_block" {
+  value = module.vpc.vpc_cidr_block
+}
