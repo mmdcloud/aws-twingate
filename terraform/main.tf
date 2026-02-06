@@ -62,8 +62,8 @@ module "twingate_vpc" {
   create_igw              = true
   map_public_ip_on_launch = true
   enable_nat_gateway      = true
-  single_nat_gateway      = true
-  one_nat_gateway_per_az  = false
+  single_nat_gateway      = false
+  one_nat_gateway_per_az  = true
   tags = {
     Project = "twingate"
   }
@@ -163,6 +163,14 @@ module "asg_sg" {
       protocol        = "tcp"
       security_groups = [module.lb_sg.id]
       cidr_blocks     = []
+    },
+    {
+      description     = "SSH Traffic"
+      from_port       = 22
+      to_port         = 22
+      protocol        = "tcp"
+      security_groups = []
+      cidr_blocks     = ["0.0.0.0/0"]
     }
   ]
   egress_rules = [
@@ -342,41 +350,6 @@ module "lb" {
   }
 }
 
-# -----------------------------------------------------------------------------------------
-# Twingate Configuration
-# -----------------------------------------------------------------------------------------
-
-# resource "aws_instance" "twingate_connector" {
-#   ami                         = data.aws_ami.twingate.id
-#   instance_type               = "t3.micro"
-#   associate_public_ip_address = true
-#   vpc_security_group_ids      = [module.twingate_connector_sg.id]
-#   key_name                    = data.aws_key_pair.key_pair.key_name
-#   metadata_options {
-#     http_endpoint = "enabled"
-#     http_tokens   = "required"
-#   }
-#   monitoring = true
-#   user_data  = <<-EOT
-#     #!/bin/bash
-#     set -e
-#     sleep 10
-#     mkdir -p /etc/twingate/
-#     {
-#       echo TWINGATE_URL="https://${var.tg_network}.twingate.com"
-#       echo TWINGATE_ACCESS_TOKEN="${twingate_connector_tokens.aws_connector_tokens.access_token}"
-#       echo TWINGATE_REFRESH_TOKEN="${twingate_connector_tokens.aws_connector_tokens.refresh_token}"
-#     } > /etc/twingate/connector.conf
-#     chmod 600 /etc/twingate/connector.conf
-#     sudo systemctl enable --now twingate-connector
-#     systemctl status twingate-connector > /var/log/twingate-startup.log 2>&1
-#   EOT
-#   subnet_id  = module.twingate_vpc.public_subnets[0]
-#   tags = {
-#     "Name" = "Twingate Connector"
-#   }
-# }
-
 module "twingate_connector_instance" {
   source = "./modules/ec2"
 
@@ -466,57 +439,3 @@ module "twingate_module" {
     }
   ]
 }
-
-# resource "twingate_remote_network" "aws_network" {
-#   name = "aws remote network"
-# }
-
-# resource "twingate_connector" "aws_connector" {
-#   remote_network_id = twingate_remote_network.aws_network.id
-# }
-
-# resource "twingate_connector_tokens" "aws_connector_tokens" {
-#   connector_id = twingate_connector.aws_connector.id
-# }
-
-# resource "twingate_user" "user" {
-#   first_name = "mohit"
-#   last_name  = "dixit"
-#   role       = "ADMIN"
-#   is_active  = true
-#   email      = "madmaxcloudonline@gmail.com"
-# }
-
-# data "twingate_users" "lookup" {
-#   email = "mohitfury1997@gmail.com"
-# }
-
-# # Access the first (and should be only) matching user
-# locals {
-#   mohit_user_id = data.twingate_users.lookup.users[0].id
-# }
-
-# resource "twingate_group" "aws_group" {
-#   name     = "aws group"
-#   user_ids = [twingate_user.user.id, local.mohit_user_id]
-# }
-
-# resource "twingate_resource" "aws_resource" {
-#   name              = "aws web sever"
-#   address           = module.lb.dns_name
-#   remote_network_id = twingate_remote_network.aws_network.id
-#   protocols = {
-#     allow_icmp = true
-#     tcp = {
-#       policy = "RESTRICTED"
-#       ports  = ["80"]
-#     }
-#     udp = {
-#       policy = "ALLOW_ALL"
-#     }
-#   }
-#   access_group {
-#     group_id           = twingate_group.aws_group.id
-#     security_policy_id = null
-#   }
-# }

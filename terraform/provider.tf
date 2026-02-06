@@ -22,6 +22,6 @@ provider "aws" {
 provider "random" {}
 
 provider "twingate" {
-  api_token = ""
+  api_token = "WjVvLdiaXY6RH7wI__WSYW4PNsCAPOZRIvKDQG4NvwNdFZTydpPDI3UAry85T31UMmHklSKRJIWVHgaSGxbwMlhUVMhME37blOhCEno6qolv9zuqfPAUbPN_bEKsTKggW5YV6Q"
   network   = var.tg_network
 }
