@@ -211,7 +211,7 @@ resource "aws_iam_instance_profile" "iam_instance_profile" {
 
 # Instance template
 module "launch_template" {
-  source                               = "./modules/launch_template"
+  source                               = "./modules/launch-template"
   name                                 = "launch_template"
   description                          = "launch_template"
   ebs_optimized                        = false
@@ -231,7 +231,7 @@ module "launch_template" {
 
 # Auto Scaling Group for launch template
 module "asg" {
-  source                    = "./modules/auto_scaling_group"
+  source                    = "./modules/auto-scaling-group"
   name                      = "asg"
   min_size                  = 3
   max_size                  = 50
