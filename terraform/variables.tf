@@ -4,25 +4,25 @@
 variable "region" {
   description = "AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = ""
 }
 
 variable "project_name" {
   description = "Project name for tagging"
   type        = string
-  default     = "twingate"
+  default     = ""
 }
 
 variable "key_pair_name" {
   description = "Name of the EC2 key pair"
   type        = string
-  default     = "madmaxkeypair"
+  default     = ""
 }
 
 variable "existing_user_email" {
   description = "Email of existing Twingate user to lookup"
   type        = string
-  default     = "mohitfury1997@gmail.com"
+  default     = ""
 }
 
 # -----------------------------------------------------------------------------------------
@@ -31,28 +31,31 @@ variable "existing_user_email" {
 variable "vpc_name" {
   description = "Name of the VPC"
   type        = string
-  default     = "twingate-vpc"
+  default     = ""
 }
 
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string
-  default     = "10.0.0.0/16"
+  default     = ""
 }
 
 variable "azs" {
   description = "Availability zones"
   type        = list(string)
+  default     = []
 }
 
 variable "public_subnets" {
   description = "Public subnet CIDR blocks"
   type        = list(string)
+  default     = []
 }
 
 variable "private_subnets" {
   description = "Private subnet CIDR blocks"
   type        = list(string)
+  default     = []
 }
 
 # -----------------------------------------------------------------------------------------
@@ -70,31 +73,31 @@ variable "ec2_managed_policy_arns" {
 variable "launch_template_name" {
   description = "Name of the launch template"
   type        = string
-  default     = "launch_template"
+  default     = ""
 }
 
 variable "asg_ami_id" {
   description = "AMI ID for ASG instances"
   type        = string
-  default     = "ami-005fc0f236362e99f"
+  default     = ""
 }
 
 variable "asg_instance_type" {
   description = "Instance type for ASG"
   type        = string
-  default     = "t2.micro"
+  default     = ""
 }
 
 variable "asg_name" {
   description = "Name of the Auto Scaling Group"
   type        = string
-  default     = "asg"
+  default     = ""
 }
 
 variable "asg_min_size" {
   description = "Minimum size of ASG"
   type        = number
-  default     = 3
+  default     = 0
 }
 
 variable "asg_max_size" {
@@ -106,7 +109,7 @@ variable "asg_max_size" {
 variable "asg_desired_capacity" {
   description = "Desired capacity of ASG"
   type        = number
-  default     = 3
+  default     = 0
 }
 
 # -----------------------------------------------------------------------------------------
@@ -115,7 +118,7 @@ variable "asg_desired_capacity" {
 variable "lb_name" {
   description = "Name of the load balancer"
   type        = string
-  default     = "lb"
+  default     = ""
 }
 
 # -----------------------------------------------------------------------------------------
@@ -124,12 +127,13 @@ variable "lb_name" {
 variable "twingate_instance_type" {
   description = "Instance type for Twingate connector"
   type        = string
-  default     = "t3.micro"
+  default     = ""
 }
 
 variable "tg_network" {
   description = "Twingate network name"
   type        = string
+  default     = ""
 }
 
 # -----------------------------------------------------------------------------------------
@@ -138,35 +142,35 @@ variable "tg_network" {
 variable "twingate_network_name" {
   description = "Name of the Twingate remote network"
   type        = string
-  default     = "aws remote network"
+  default     = ""
 }
 
 variable "twingate_user_first_name" {
   description = "First name of Twingate user"
   type        = string
-  default     = "mohit"
+  default     = ""
 }
 
 variable "twingate_user_last_name" {
   description = "Last name of Twingate user"
   type        = string
-  default     = "dixit"
+  default     = ""
 }
 
 variable "twingate_user_email" {
   description = "Email of Twingate user"
   type        = string
-  default     = "madmaxcloudonline@gmail.com"
+  default     = ""
 }
 
 variable "twingate_group_name" {
   description = "Name of the Twingate group"
   type        = string
-  default     = "aws group"
+  default     = ""
 }
 
 variable "twingate_resource_name" {
   description = "Name of the Twingate resource"
   type        = string
-  default     = "aws web sever"
+  default     = ""
 }

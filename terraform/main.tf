@@ -26,7 +26,7 @@ data "aws_ami" "twingate" {
 }
 
 data "aws_key_pair" "key_pair" {
-  key_name = "madmaxkeypair"
+  key_name = var.key_pair_name
 }
 
 data "twingate_users" "lookup" {
@@ -52,8 +52,8 @@ resource "random_id" "id" {
 # -----------------------------------------------------------------------------------------
 module "twingate_vpc" {
   source                  = "./modules/vpc"
-  vpc_name                = "twingate-vpc"
-  vpc_cidr                = "10.0.0.0/16"
+  vpc_name                = var.vpc_name
+  vpc_cidr                = var.vpc_cidr
   azs                     = var.azs
   public_subnets          = var.public_subnets
   private_subnets         = var.private_subnets
@@ -65,7 +65,7 @@ module "twingate_vpc" {
   single_nat_gateway      = false
   one_nat_gateway_per_az  = true
   tags = {
-    Project = "twingate"
+    Name = var.vpc_name
   }
 }
 
@@ -212,14 +212,14 @@ resource "aws_iam_instance_profile" "iam_instance_profile" {
 # Instance template
 module "launch_template" {
   source                               = "./modules/launch-template"
-  name                                 = "launch_template"
-  description                          = "launch_template"
+  name                                 = var.launch_template_name
+  description                          = var.launch_template_name
   ebs_optimized                        = false
-  image_id                             = "ami-005fc0f236362e99f"
-  instance_type                        = "t2.micro"
+  image_id                             = var.asg_ami_id
+  instance_type                        = var.asg_instance_type
   instance_initiated_shutdown_behavior = "stop"
   instance_profile_name                = aws_iam_instance_profile.iam_instance_profile.name
-  key_name                             = "madmaxkeypair"
+  key_name                             = data.aws_key_pair.key_pair.key_name
   network_interfaces = [
     {
       associate_public_ip_address = false
@@ -232,10 +232,10 @@ module "launch_template" {
 # Auto Scaling Group for launch template
 module "asg" {
   source                    = "./modules/auto-scaling-group"
-  name                      = "asg"
-  min_size                  = 3
-  max_size                  = 50
-  desired_capacity          = 3
+  name                      = var.asg_name
+  min_size                  = var.asg_min_size
+  max_size                  = var.asg_max_size
+  desired_capacity          = var.asg_desired_capacity
   health_check_grace_period = 300
   health_check_type         = "ELB"
   force_delete              = true
@@ -305,7 +305,7 @@ module "lb_logs" {
 
 module "lb" {
   source                     = "terraform-aws-modules/alb/aws"
-  name                       = "lb"
+  name                       = var.lb_name
   load_balancer_type         = "application"
   vpc_id                     = module.twingate_vpc.vpc_id
   subnets                    = module.twingate_vpc.private_subnets
@@ -346,7 +346,7 @@ module "lb" {
     }
   }
   tags = {
-    Project = "verified-access"
+    Name = var.lb_name
   }
 }
 
