@@ -76,15 +76,7 @@ module "twingate_connector_sg" {
   vpc_id = module.twingate_vpc.vpc_id
   ingress_rules = [
     {
-      description     = "Twingate Control Plane"
-      from_port       = 22
-      to_port         = 22
-      protocol        = "tcp"
-      security_groups = []
-      cidr_blocks     = ["0.0.0.0/0"]
-    },
-    {
-      description     = "Twingate Control Plane"
+      description     = "Twingate HTTPS Traffic"
       from_port       = 443
       to_port         = 443
       protocol        = "tcp"
